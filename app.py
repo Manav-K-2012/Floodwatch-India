@@ -1,91 +1,111 @@
 import streamlit as st
+import requests
 import pandas as pd
-import os
-import numpy as np
+from datetime import datetime
 
-st.set_page_config(page_title="FloodWatch India - 700 Districts", page_icon="🌊", layout="wide")
+st.set_page_config(page_title="FloodWatch India LIVE", page_icon="🌊", layout="wide")
+st.title("🌊 FloodWatch India - LIVE + IMD Alerts")
 
-@st.cache_data
-def load_districts():
-    # If districts.csv exists, use it
-    if os.path.exists('districts.csv'):
-        return pd.read_csv('districts.csv')
+# --- API FUNCTIONS ---
+def get_coords(place):
+    try:
+        url = f"https://geocoding-api.open-meteo.com/v1/search?name={place}&count=1&language=en&format=json"
+        r = requests.get(url, timeout=10).json()
+        if r.get('results'):
+            f = r['results'][0]
+            return f['latitude'], f['longitude'], f"{f['name']}, {f.get('admin1','')}"
+        return None, None, None
+    except:
+        return None, None, None
 
-    # Otherwise auto-create 760 districts
-    major = [
-        ("Thane, Maharashtra", 19.2183, 72.9781), ("Mumbai, Maharashtra", 19.0760, 72.8777),
-        ("Pune, Maharashtra", 18.5204, 73.8567), ("Nagpur, Maharashtra", 21.1458, 79.0882),
-        ("Patna, Bihar", 25.5941, 85.1376), ("Gaya, Bihar", 24.7914, 84.9994),
-        ("Lucknow, Uttar Pradesh", 26.8467, 80.9462), ("Agra, Uttar Pradesh", 27.1767, 78.0081),
-        ("Kanpur, Uttar Pradesh", 26.4499, 80.3319), ("Varanasi, Uttar Pradesh", 25.3176, 82.9739),
-        ("Delhi, Delhi", 28.7041, 77.1025), ("Chennai, Tamil Nadu", 13.0827, 80.2707),
-        ("Bengaluru, Karnataka", 12.9716, 77.5946), ("Hyderabad, Telangana", 17.3850, 78.4867),
-        ("Kolkata, West Bengal", 22.5726, 88.3639), ("Ahmedabad, Gujarat", 23.0225, 72.5714),
-        ("Jaipur, Rajasthan", 26.9124, 75.7873), ("Bhopal, Madhya Pradesh", 23.2599, 77.4126),
-        ("Guwahati, Assam", 26.1445, 91.7362), ("Bhubaneswar, Odisha", 20.2961, 85.8245),
-        ("Kochi, Kerala", 9.9312, 76.2673), ("Dehradun, Uttarakhand", 30.3165, 78.0322),
-    ]
+def get_live_weather(lat, lon):
+    try:
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&past_days=1&hourly=precipitation,wind_speed_10m&daily=precipitation_sum&timezone=Asia/Kolkata"
+        r = requests.get(url, timeout=10).json()
+        rain_24h = round(sum(r['hourly']['precipitation'][-24:]),1)
+        wind = r['hourly']['wind_speed_10m'][-1]
+        return rain_24h, wind, r
+    except:
+        return None, None, None
 
-    states_centers = {
-        "Maharashtra": (19.7515, 75.7139), "Uttar Pradesh": (26.8467, 80.9462), "Bihar": (25.5941, 85.1376),
-        "Madhya Pradesh": (23.2599, 77.4126), "Gujarat": (23.0225, 72.5714), "Rajasthan": (26.9124, 75.7873),
-        "Karnataka": (12.9716, 77.5946), "Tamil Nadu": (13.0827, 80.2707), "Andhra Pradesh": (15.9129, 79.74),
-        "Telangana": (17.3850, 78.4867), "Kerala": (10.8505, 76.2711), "West Bengal": (22.5726, 88.3639),
-        "Odisha": (20.2961, 85.8245), "Assam": (26.2006, 92.9376), "Punjab": (31.1471, 75.3412),
-        "Haryana": (29.0588, 76.0856), "Chhattisgarh": (21.2787, 81.8661), "Jharkhand": (23.6102, 85.2799),
-        "Uttarakhand": (30.0668, 79.0193), "Himachal Pradesh": (31.1048, 77.1734), "Arunachal Pradesh": (28.2180, 94.7278),
-        "Manipur": (24.6637, 93.9063), "Meghalaya": (25.4670, 91.3662), "Mizoram": (23.1645, 92.9376),
-        "Nagaland": (26.1584, 94.5624), "Tripura": (23.9408, 91.9882), "Goa": (15.2993, 74.1240), "Delhi": (28.7041, 77.1025)
-    }
-
-    all_d = major.copy()
-    np.random.seed(0)
-    for state, (clat, clon) in states_centers.items():
-        for i in range(1, 31):
-            lat = clat + float(np.random.uniform(-1.8, 1.8))
-            lon = clon + float(np.random.uniform(-1.8, 1.8))
-            all_d.append((f"{state} Dist {i}, {state}", round(lat,4), round(lon,4)))
-
-    df = pd.DataFrame(all_d, columns=["District","lat","lon"]).drop_duplicates(subset=["District"])
-    return df.sort_values("District").head(760)
-
-df_districts = load_districts()
-
-st.title("FloodWatch India - 760 Districts")
-st.write(f"Monitoring {len(df_districts)} districts across India")
-
-st.sidebar.header("Select District")
-selected = st.sidebar.selectbox("Search District", df_districts["District"].tolist())
-search = st.sidebar.text_input("Or type to filter")
-if search:
-    filtered = df_districts[df_districts["District"].str.contains(search, case=False)]
-    if not filtered.empty:
-        selected = st.sidebar.selectbox("Filtered Results", filtered["District"].tolist())
-
-row = df_districts[df_districts["District"] == selected].iloc[0]
-
-st.sidebar.write("---")
-rainfall = st.sidebar.slider("Rainfall (mm)", 0, 500, 120)
-river = st.sidebar.slider("River Level (m)", 0.0, 20.0, 5.5)
-
-st.subheader(f"📍 {selected}")
-col1, col2 = st.columns(2)
-col1.metric("Latitude", row["lat"])
-col2.metric("Longitude", row["lon"])
-
-if st.button("Check Flood Risk", type="primary"):
-    if rainfall > 250 or river > 12:
-        st.error(f"🔴 HIGH FLOOD RISK in {selected}")
-    elif rainfall > 120 or river > 7:
-        st.warning(f"🟡 MEDIUM RISK in {selected}")
+def get_imd_alert(rain):
+    # IMD Official Criteria
+    if rain < 7:
+        return "🟢 GREEN", "No Warning", "No action needed"
+    elif rain < 64.5:
+        return "🟢 GREEN", "No Warning", "Light rain expected"
+    elif rain < 115.5:
+        return "🟡 YELLOW", "Watch", "Be updated - Heavy rain at isolated places"
+    elif rain < 204.5:
+        return "🟠 ORANGE", "Alert", "Be prepared - Very heavy rain, waterlogging possible"
     else:
-        st.success(f"🟢 LOW RISK in {selected}")
+        return "🔴 RED", "Warning", "IMD RED ALERT! Extremely heavy rain, FLOOD expected. Take action!"
 
-st.write("---")
-st.subheader(f"Map: {selected}")
-st.map(pd.DataFrame({"lat":[row["lat"]], "lon":[row["lon"]]}))
+# --- UI ---
+st.sidebar.header("🇮🇳 Search Location")
+place = st.sidebar.text_input("District / Village", "Thane")
+search = st.sidebar.button("🔍 Check LIVE Flood Status")
 
-st.write("---")
-st.subheader("All India Flood Monitoring Network")
-st.map(df_districts)
-st.dataframe(df_districts, use_container_width=True)
+if place:
+    lat, lon, full_name = get_coords(place)
+    if lat is None:
+        st.error("Place not found. Try 'Mumbai', 'Thane', 'Agra'")
+    else:
+        rain, wind, raw = get_live_weather(lat, lon)
+        if rain is None:
+            st.error("Weather API busy. Try again.")
+        else:
+            imd_color, imd_title, imd_desc = get_imd_alert(rain)
+            
+            # Flood score
+            river = st.sidebar.slider("River Level (m)", 0.0, 20.0, 4.0)
+            soil = st.sidebar.slider("Soil Saturation %", 0, 100, 60)
+            score = rain*0.6 + river*4 + soil*0.15
+
+            if score < 25: flood_risk = "🟢 LOW"
+            elif score < 50: flood_risk = "🟡 MEDIUM"
+            else: flood_risk = "🔴 HIGH"
+
+            # --- DISPLAY ---
+            st.success(f"📍 {full_name} | {lat:.2f}, {lon:.2f}")
+            
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Live Rain 24h", f"{rain} mm")
+            c2.metric("Wind", f"{wind} km/h")
+            c3.metric("Flood Risk", flood_risk)
+
+            # IMD ALERT BOX
+            if "RED" in imd_color:
+                st.error(f"### {imd_color} - IMD {imd_title}\n{imd_desc}")
+            elif "ORANGE" in imd_color:
+                st.warning(f"### {imd_color} - IMD {imd_title}\n{imd_desc}")
+            elif "YELLOW" in imd_color:
+                st.info(f"### {imd_color} - IMD {imd_title}\n{imd_desc}")
+            else:
+                st.success(f"### {imd_color} - IMD {imd_title}\n{imd_desc}")
+
+            # --- AUTO SMS STYLE WARNING ---
+            sms_time = datetime.now().strftime("%d-%m-%Y %I:%M %p")
+            sms_msg = f"""🚨 FLOODWATCH ALERT
+Time: {sms_time}
+Location: {full_name}
+Rainfall: {rain}mm (24h)
+IMD: {imd_color} - {imd_title}
+Flood Risk: {flood_risk}
+River: {river}m
+
+Advice: {imd_desc}
+
+- FloodWatch India
+"""
+            st.subheader("📲 Auto SMS Warning (Copy & Send to Farmers)")
+            st.code(sms_msg, language="text")
+            st.download_button("📥 Download SMS as .txt", sms_msg, file_name=f"alert_{place}.txt")
+
+            # For real SMS, integrate Fast2SMS API later
+            st.caption("Tip: To send REAL SMS, get free API key from fast2sms.com and we can add 1 line code.")
+            
+            st.map(pd.DataFrame({'lat': [lat], 'lon': [lon]}), zoom=10)
+
+st.markdown("---")
+st.caption("v3.0 LIVE | Rain: Open-Meteo | IMD Logic: 0-64 Green, 64-115 Yellow, 115-204 Orange, 204+ Red")
