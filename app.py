@@ -101,3 +101,22 @@ Alert: Stay Safe! - FloodWatch India"""
 
 else:
     st.info("👆 Type any city/village name and click Check - App will automatically fetch LIVE rain and give flood alert!")
+# ===== FLOOD SMS CODE - PASTE AT BOTTOM =====
+import requests
+
+API_KEY = "LlzajuOVkF07M5rfdmBn43w1vhpI62xgKQYSNbyZTDCGsioHeJGexWpqZPNC36uAMzynSL5TXBjg0oth"
+
+def send_sms(number, msg):
+    url = "https://www.fast2sms.com/dev/bulkV2"
+    r = requests.get(url, params={
+        "authorization": API_KEY,
+        "route": "q",
+        "message": msg,
+        "language": "english",
+        "numbers": number
+    })
+    print(r.json())
+
+# TEST - change number to yours
+send_sms("8108502124" "86930 38626", "Thane Flood RED ALERT Test - SIH Demo")
+# ===== END =====
