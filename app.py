@@ -101,9 +101,7 @@ Advice: {imd_desc}
             st.subheader("📲 Auto SMS Warning (Copy & Send to Farmers)")
             st.code(sms_msg, language="text")
             st.download_button("📥 Download SMS as .txt", sms_msg, file_name=f"alert_{place}.txt")
-
-            # For real SMS, integrate Fast2SMS API later
-            st.caption("Tip: To send REAL SMS, get free API key from fast2sms.com and we can add 1 line code.")
+            st.caption("✅ FloodWatch India - Helping Farmers Stay Safe")
             
             st.map(pd.DataFrame({'lat': [lat], 'lon': [lon]}), zoom=10)
 
