@@ -1,4 +1,7 @@
 streamlit
+requests
+folium
+streamlit-folium
 pandas
-scikit-learn
 numpy
+scikit-learn
